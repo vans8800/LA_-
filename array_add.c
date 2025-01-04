@@ -64,3 +64,80 @@ int main()
                 duration);
 	return 0;
 }
+
+
+
+##接口封装
+#include <stdio.h>
+#include <time.h>
+#include <stdlib.h>
+
+#define ARR_LEN 1000
+
+typedef u_int32_t uint32_t;
+static inline uint32_t read_time(void)
+{
+    uint32_t a = 0, id = 0;
+    asm volatile ( "rdtimel.w  %0, %1" : "=r"(a), "=r"(id) :: "memory" );
+    return a;
+}
+
+
+
+void arr_add(int *a, int *b, int*c)
+{
+        asm volatile(
+                        "li.w  $t0, 0x0 \n\t"   //for loop var
+                        "li.w   $t1, 1000       \n\t"   //for loop var
+
+                "L:                     \n\t"
+                        "xvld   $xr1, $a0, 0    \n\t"   // 加载数组 a[] 中的 8 组整形值到向量寄存器 x1
+                        "xvld   $xr2, $a1, 0    \n\t"   // 加载数组 b[] 中的 8 组整形值到向量寄存器 x2
+                        "xvadd.w $xr3, $xr1, $xr2       \n\t"   // 实现 a[i...i+8] + b[i...i+8], 将结果存入寄存器 x3
+                        "xvst   $xr3, $a2, 0    \n\t"   // x3 数据写回 c[i...i+8], t4 寄存器的值指向 c[i]
+
+                        "addi.d $a0, $a0, 32    \n\t"   // 数组 a[] + 32, 即指向 a[i + 9]
+                        "addi.d $a1, $a1, 32    \n\t"   // 数组 b[] + 32, 注意：原书中此处是 addi.d     a1, a2, 32
+                        "addi.d $a2, $a2, 32    \n\t"   // 数组 c[] + 32
+                        "addi.d $t0, $t0, 8     \n\t"   //t0=t0+8
+                        "bne $t0, $t1, L \n\t"  //# 判断若 for () 没有结束，跳转到L，继续执行
+        );
+
+}
+
+int main()
+{
+        int start=0, end=0;
+        double  duration;
+        int a[ARR_LEN], b[ARR_LEN], c[ARR_LEN]={0};
+        srand((unsigned)time(NULL));
+        for(int i =0; i < ARR_LEN; i++){
+                a[i] = rand()%ARR_LEN+1;
+                b[i] = rand()%ARR_LEN+1;
+        }
+
+#if 0
+        start = read_time();
+        for (int i = 0; i < ARR_LEN; i++)
+                c[i] = a[i] + b[i];
+        end = read_time();
+        duration = end - start;
+#endif
+
+        start = read_time();
+        arr_add(a, b, c);
+        end = read_time();
+        duration = end - start;
+
+        printf("[performance test]\n"
+                "org cycles: %g\n",
+                duration);
+
+        for(int i =0; i < 10; ++i)
+        {
+                printf("%d + %d = %d\n",  a[i], b[i], c[i]);
+        }
+        return 0;
+}
+
+
